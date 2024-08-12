@@ -21,5 +21,3 @@ def position_eval(eval_board):
     return material_score/100
 
 test_board = board.Board(fen = "r1bq1rk1/p1pp1ppp/2p5/2b5/2B1R3/8/PPP2PPP/RNBQ2K1 b KQkq - 0 1")
-
-print(position_eval(test_board))
