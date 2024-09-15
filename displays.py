@@ -208,8 +208,7 @@ class Displays:
 
         for rect in self.promotion_rects:
             if (col * cts.sqr_side, row * cts.sqr_side) == rect.topleft:
-                self.board.move(move.Move(pawn_pos, prom_pos, promotion= piece_list[counter]),
-                                self.board.squares[pawn_pos[0]][pawn_pos[1]].piece)
+                self.board.move(move.Move(pawn_pos, prom_pos, promotion= piece_list[counter]))
             counter = counter + 1
 
         self.promotion = False

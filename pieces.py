@@ -258,6 +258,10 @@ class Pawn(Piece):
         moves = []
         row, col = pos
 
+        if row == 7 or row == 0:
+            self.attacked_squares = []
+            return
+
         offsets = [1, -1]
         for offset in offsets:
             if square.Square.in_range(col + offset):

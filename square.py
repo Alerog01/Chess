@@ -1,5 +1,4 @@
 import constants as cts
-import copy
 
 class Square:
     def __init__(self, row, column):

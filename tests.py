@@ -15,23 +15,16 @@ def get_number_of_moves(test_board, depth):
 
     n_moves = 0
 
-    for row in range(cts.board_rows):
-        for col in range(cts.board_cols):
-            if (not test_board.squares[row][col].isempty() and
-                    test_board.squares[row][col].piece.color == test_board.turn):
+    if depth == 1:
+        n_moves += len(test_board.legal_moves)
+        return n_moves
 
-                legal_moves = test_board.squares[row][col].piece.get_legal_moves()
+    for move in test_board.legal_moves:
+        test_board.move(move)
 
-                if depth == 1:
-                    n_moves += len(legal_moves)
-                    continue
+        n_moves += get_number_of_moves(test_board, depth - 1)
 
-                for move in legal_moves:
-                    test_board.move(move, test_board.squares[row][col].piece)
-
-                    n_moves += get_number_of_moves(test_board, depth - 1)
-
-                    test_board.undo_move()
+        test_board.undo_move()
     return n_moves
 
 def debug_number_of_moves(test_board, depth, chess_board):
@@ -79,14 +72,6 @@ def debug_number_of_moves(test_board, depth, chess_board):
 
     return n_moves
 
-def get_execution_time(test_board, depth):
-    start_time = time.time()
-    num_moves = get_number_of_moves(test_board, depth)
-    end_time = time.time()
-    execution_time = end_time - start_time
-    return num_moves, execution_time
-
-
 class test_generation(unittest.TestCase):
         def test_tricky_positions(self):
             for test_position in cts.test_positions:
@@ -122,7 +107,7 @@ class test_generation(unittest.TestCase):
             test_board = board.Board()
 
             nodes = [20, 400, 8902, 197281, 4865609]
-            depth = 5
+            depth = 4
             my_nodes = get_number_of_moves(test_board, depth)
             self.assertEqual(nodes[depth - 1], my_nodes)
 

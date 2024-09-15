@@ -1,15 +1,18 @@
-import constants as cts
 import copy
+
+import constants as cts
 import operator
-import move
-from move import Move
 import pieces as p
 from square import Square
 
+#Averiguar como cambiar la implementacion del tablero para hacer undo_move eficiente.
+#Se pueden guardar las casillas atacadas y las jugadas legales para que vaya mucho mas rapido.
+#Hacer lista de piezas en vez de casillas
 
 class Board:
 
     def __init__(self, fen=cts.initial_pos):
+        self.legal_moves = []
         self.w_pin_ray_squares = []
         self.b_pin_ray_squares = []
         self.pinned_pieces = []
@@ -101,6 +104,7 @@ class Board:
                 self.checkmate = True
             else:
                 self.draw = True
+                self.checkmate = False
 
     def distance(self, pos1, pos2):
         row_diff = pos1[0] - pos2[0]
@@ -289,13 +293,20 @@ class Board:
             for y in range(cts.board_cols):
                 self.squares[x][y] = Square(x, y)
 
-    def update_legal_moves(self):
+    def update_legal_moves(self, all_moves = False):
+        self.legal_moves = []
         self.n_of_legal_moves = 0
+
         for row in range(cts.board_rows):
             for col in range(cts.board_cols):
                 if not self.squares[row][col].isempty() and self.squares[row][col].piece.color == self.turn:
                     self.squares[row][col].piece.set_legal_moves(self, (row, col))
+                    self.legal_moves.extend(self.squares[row][col].piece.get_legal_moves())
                     self.n_of_legal_moves += len(self.squares[row][col].piece.legal_moves)
+
+                if all_moves:
+                    if not self.squares[row][col].isempty() and self.squares[row][col].piece.color != self.turn:
+                        self.squares[row][col].piece.set_legal_moves(self, (row, col))
 
     def __get_attacked_squares(self, color):
         att_squares = set()
@@ -320,11 +331,23 @@ class Board:
         self.b_attacked_squares = self.__get_attacked_squares("b")
         self.w_attacked_squares = self.__get_attacked_squares("w")
 
-    def delete_piece(self, row, col):
+    def delete_piece(self, row, col, simulation = False):
+        if simulation:
+            self.squares[row][col].piece = None
+            return
+
         self.squares[row][col].piece = None
         self.__update_attacked_squares((row, col))
 
-    def add_piece(self, row, col, piece):
+    def add_piece(self, row, col, piece, simulation = False):
+        if simulation:
+            self.squares[row][col].piece = piece
+            if piece.type == "king":
+                if piece.color == "w":
+                    self.w_king_pos = (row, col)
+                else:
+                    self.b_king_pos = (row, col)
+            return
 
         if piece.type == "king":
             if piece.color == "w":
@@ -336,7 +359,21 @@ class Board:
         self.squares[row][col].piece.set_attacked_squares(self, (row, col))
         self.__update_attacked_squares((row, col))
 
-    def move(self, move, piece):
+    def move(self, move):
+        if move.null == True:
+            self.change_turn()
+            if self.turn == "w":
+                self.w_check_state = self.squares[self.w_king_pos[0]][self.w_king_pos[1]].piece.in_check(self,
+                                                                                                         self.w_king_pos)
+            else:
+                self.b_check_state = self.squares[self.b_king_pos[0]][self.b_king_pos[1]].piece.in_check(self,
+                                                                                                         self.b_king_pos)
+            self.move_history.append((move, None, None, None, None, self.get_all_moves()))
+            self.update_legal_moves()
+            return
+
+        piece = self.squares[move.initial_pos[0]][move.initial_pos[1]].piece
+
         promotion_dict = {
             "q": lambda: p.Queen(piece.color),
             "b": lambda: p.Bishop(piece.color),
@@ -384,9 +421,14 @@ class Board:
         self.positions.append(self.get_board_fen())
 
         self.update_legal_moves()
+        self.check_mate_and_stalemate()
 
     def undo_move(self):
         last_move, piece, captured_piece, en_passant_state, castling_state = self.move_history.pop()
+
+        if last_move.null:
+            self.change_turn()
+            return
 
         if castling_state[1] == False:
             piece.has_moved = False
@@ -432,9 +474,12 @@ class Board:
 
         self.set_pin_ray_squares("w")
         self.set_pin_ray_squares("b")
-
         self.update_pinned_pieces()
+
         self.update_legal_moves()
+
+        self.checkmate = False
+        self.draw = False
 
         self.positions.pop()
 
@@ -493,7 +538,7 @@ class Board:
 
         self.update_pinned_pieces()
 
-        self.update_legal_moves()
+        self.update_legal_moves(all_moves = True)
 
         self.update_positions_list()
     def get_board_fen(self):
@@ -552,5 +597,56 @@ class Board:
         else:
             self.turn = "w"
 
+    def has_queen(self, color):
+        for row in range(cts.board_rows):
+            for col in range(cts.board_cols):
+                if not self.squares[row][col].isempty():
+                    if self.squares[row][col].piece.color == color:
+                        if self.squares[row][col].piece.type == "queen":
+                            return True
+
+        return False
+
+    def minor_piece_value_count(self, color):
+        count = 0
+        for row in range(cts.board_rows):
+            for col in range(cts.board_cols):
+                if not self.squares[row][col].isempty():
+                    if self.squares[row][col].piece.color == color:
+                        if self.squares[row][col].piece.type in ["bishop", "knight", "rook"]:
+                            count += self.squares[row][col].piece.value
+
+        return count
+
+    def get_all_moves(self):
+        all_moves = []
+        for row in range(cts.board_rows):
+            for col in range(cts.board_cols):
+                if not self.squares[row][col].isempty():
+                    if self.squares[row][col].piece.color == self.turn:
+                        all_moves.extend(self.squares[row][col].piece.get_legal_moves())
+
+        return all_moves
+
+    def get_captures(self):
+        captures= []
+        for move in self.get_all_moves():
+            if move.is_capture(self):
+                captures.append(move)
+
+        return captures
+
     def copy(self):
         return copy.deepcopy(self)
+
+    def in_check(self):
+        if self.turn == "w":
+            if self.w_check_state[0]>0:
+                return True
+            else:
+                return False
+        if self.turn == "b":
+            if self.b_check_state[0]>0:
+                return True
+            else:
+                return False
